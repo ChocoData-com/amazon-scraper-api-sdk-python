@@ -1,5 +1,5 @@
 """
-amazonscraperapi — Official Python client for https://amazonscraperapi.com
+amazonscraperapi - Official Python client for https://amazonscraperapi.com
 
 Usage:
     from amazonscraperapi import AmazonScraperAPI
