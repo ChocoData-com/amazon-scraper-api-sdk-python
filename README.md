@@ -4,18 +4,21 @@
 [![PyPI downloads](https://img.shields.io/pypi/dm/amazonscraperapi-sdk)](https://pypi.org/project/amazonscraperapi-sdk/)
 [![license](https://img.shields.io/pypi/l/amazonscraperapi-sdk)](./LICENSE)
 
-Official Python SDK for **[Amazon Scraper API](https://amazonscraperapi.com)** — flat-priced ($0.50 per 1,000 successful requests), no credits system, pay only for 2xx responses.
+Official Python SDK for **[Amazon Scraper API](https://www.amazonscraperapi.com/)**. Flat-priced at $0.50 per 1,000 successful requests, no credits system, pay only for 2xx responses. Drop into any Python project to fetch structured Amazon product data, run keyword searches, or queue async batches with webhook callbacks.
 
 ## Benchmark (live production, 2026-04)
 
-| Metric | Ours | ScrapingBee $49 tier | ScraperAPI $49 tier |
-|---|---|---|---|
-| Median latency (product, US) | **~2.6 s** | ~3.3 s | n/a |
-| P95 latency | **~6 s** | ~22 s | n/a |
-| Price / 1,000 Amazon products | **$0.50** | $1.63 | $12.25 |
-| Concurrent threads (entry paid) | **50** | 10 | 20 |
+Measured on our own infrastructure against a 30-query mixed international set:
 
-Same 30-query mixed international set; we tied ScrapingBee on success rate and were 3–4× faster at P95.
+| Metric | Value |
+|---|---|
+| Median latency (product, US) | **~2.6 s** |
+| P95 latency | **~6 s** |
+| P99 latency | ~10.5 s |
+| Price / 1,000 Amazon products | **$0.50** flat |
+| Concurrent threads (entry paid plan) | **50** |
+| Marketplaces supported | **20+** |
+| Billing unit | per successful (2xx) response |
 
 ---
 
@@ -25,9 +28,9 @@ Same 30-query mixed international set; we tied ScrapingBee on success rate and w
 pip install amazonscraperapi-sdk
 ```
 
-Requires Python ≥ 3.9. Built on `httpx`.
+Requires Python >= 3.9. Built on `httpx`.
 
-## Quick start — single product
+## Quick start - single product
 
 ```python
 from amazonscraperapi import AmazonScraperAPI
@@ -37,11 +40,11 @@ asa = AmazonScraperAPI(api_key="asa_live_...")
 product = asa.product(query="B09HN3Q81F", domain="com")
 
 print(product["title"])
-# → "Apple AirPods Pro (2nd Generation)..."
+# "Apple AirPods Pro (2nd Generation)..."
 print(product["price"]["current"])
-# → 199.00
+# 199.00
 print(product["rating"]["average"], product["rating"]["count"])
-# → 4.7 58214
+# 4.7 58214
 ```
 
 ### Example output (trimmed)
@@ -91,7 +94,7 @@ batch = asa.create_batch(
 )
 
 print("batch id:", batch["id"])
-# SAVE THIS — webhook signing secret is returned only once:
+# SAVE THIS. Webhook signing secret is returned only once:
 print("webhook secret:", batch["webhook_signature_secret"])
 
 # Alternative: poll
@@ -120,20 +123,20 @@ async def asa_webhook(request: Request):
 
 ## What the API solves for you
 
-A production Amazon scraper is a **2–4 week** engineering project plus permanent maintenance. This SDK wraps a managed service that has already solved:
+Building a production-grade Amazon scraper in-house is a 2-4 week engineering project plus permanent maintenance. This SDK wraps [Amazon Scraper API](https://www.amazonscraperapi.com/), which has already solved:
 
-| Pain point | What we handle | What breaks in OSS alternatives |
-|---|---|---|
-| **Amazon CAPTCHAs / robot pages** | Auto-detected, retried through a heavier proxy tier (DC → residential → premium) | Most top OSS scrapers have no anti-bot layer; issues like [scrapehero-code#12 "Page blocked by Amazon"](https://github.com/scrapehero-code/amazon-scraper/issues) are common |
-| **Brittle CSS selectors** | Extractors update weekly as Amazon changes layouts | Popular repos like `tducret/amazon-scraper-python` (881⭐, last release 2021) and `drawrowfly/amazon-product-api` (743⭐, dormant since Jan 2021) have open "API not returning titles/thumbnails" tickets — Amazon's DOM churns monthly |
-| **20+ marketplaces** | `amazon.de`, `.co.uk`, `.co.jp`, `.com.br`, ... each with marketplace-specific parsing quirks | Most OSS scrapers target `amazon.com` only. `scrapehero-code` issue #2 is literally "Does not Work with Amazon.de" — still open |
-| **Country-matched residential IPs** | `amazon.de` auto-routes through German IPs; override with `country="DE"` | OSS repos either ignore proxies or require you to BYO + figure out residential-vs-DC trade-offs yourself |
-| **Rotating proxies + anti-fingerprinting** | TLS fingerprints, headers, cookies handled | Even `drawrowfly` (richest OSS) does UA randomization only — no TLS fingerprinting |
-| **Rate-limit retries** | Transparent exponential backoff | BYO |
-| **Structured JSON output** | Title, price, rating, reviews, variants, seller, images — parsed, typed | Half the popular repos return just title/price/rating; everything else is your `BeautifulSoup` parser to maintain |
-| **Batch/async jobs** | 1,000 ASINs submitted, webhook-delivered on completion | Only 2 of the top 10 OSS scrapers support any form of concurrency |
+| Pain point | What we handle |
+|---|---|
+| **Amazon CAPTCHAs / robot pages** | Auto-detected, retried through a heavier proxy tier (datacenter, residential, premium) |
+| **Brittle CSS selectors** | Extractors update as Amazon changes layouts. Your code stays the same. |
+| **20+ marketplaces** | `amazon.de`, `.co.uk`, `.co.jp`, `.com.br`, and more. Each with marketplace-specific parsing quirks. |
+| **Country-matched residential IPs** | `amazon.de` auto-routes through German IPs. Pass `country="DE"` to override. |
+| **Rotating proxies + anti-fingerprinting** | TLS fingerprints, headers, cookies handled server-side. |
+| **Rate-limit retries** | Transparent exponential backoff. |
+| **Structured JSON output** | Title, price, rating, reviews, variants, seller, images. Parsed, typed. |
+| **Batch/async jobs** | 1,000 ASINs submitted, webhook-delivered on completion. |
 
-**Time saved:** a greenfield Python Amazon scraper built to this spec takes ~80 engineer-hours (including anti-bot handling and marketplace variants). This SDK is 10 minutes.
+**Time saved:** a greenfield Python Amazon scraper built to this spec takes roughly 80 engineer-hours (including anti-bot handling and marketplace variants). This SDK is 10 minutes.
 
 ## Error handling
 
@@ -153,7 +156,7 @@ except AsaError as e:
     elif e.code == "RATE_LIMITED":
         time.sleep(e.retry_after)
     elif e.code in ("target_unreachable", "amazon-robot-or-human"):
-        # non-2xx — you were not charged. safe to retry.
+        # non-2xx, you were not charged. safe to retry.
         pass
     else:
         raise
@@ -165,25 +168,25 @@ except AsaError as e:
 | 401 | `INVALID_API_KEY` | Missing, malformed, revoked | Verify `ASA_API_KEY`; rotate if leaked |
 | 402 | `INSUFFICIENT_CREDITS` | Balance empty | Top up; renews each billing cycle |
 | 429 | `RATE_LIMITED` | Over 120 req/60s per user | Honor `Retry-After`; retry |
-| 429 | `CONCURRENCY_LIMIT` | Over plan's parallel cap | Reduce parallelism or upgrade. Headers `X-Concurrency-*` guide backoff |
-| 502 | `target_unreachable` | Amazon down / all proxy tiers blocked | Retry after 30s — already retried through 3 tiers on our side |
+| 429 | `CONCURRENCY_LIMIT` | Over plan's parallel cap | Reduce parallelism or upgrade. `X-Concurrency-*` headers guide backoff |
+| 502 | `target_unreachable` | Amazon down / all proxy tiers blocked | Retry after 30s (already retried through 3 tiers on our side) |
 | 502 | `amazon-robot-or-human` | Amazon challenge not resolvable | Retry. Often transient. Not charged |
-| 502 | `extraction_failed` | Layout we can't parse (Amazon changed) | Report with `X-Request-Id`. Not charged. Fixed by us fast |
+| 502 | `extraction_failed` | Layout we can't parse | Report with `X-Request-Id`. Not charged |
 | 503 | `SERVICE_OVERLOADED` | Global circuit breaker | Honor `Retry-After: 60`. Rare |
 | 500 | `INTERNAL_ERROR` | Our bug | Report with `X-Request-Id` |
 
-**Flat-credit promise:** non-2xx responses are free. Every response has `X-Request-Id` for traceability — quote it in any support ticket.
+**Flat-credit promise:** non-2xx responses are free. Every response has `X-Request-Id` for traceability. Quote it in any support ticket.
 
 ## Get an API key
 
-[app.amazonscraperapi.com](https://app.amazonscraperapi.com) — **1,000 free requests on signup, no credit card required.**
+[app.amazonscraperapi.com](https://app.amazonscraperapi.com). **1,000 free requests on signup, no credit card required.**
 
 ## Links
 
+- **Website:** https://www.amazonscraperapi.com/
 - **Docs:** https://amazonscraperapi.com/docs
 - **Status:** https://amazonscraperapi.com/status
 - **Pricing:** https://amazonscraperapi.com/pricing
-- **Support:** [support@amazonscraperapi.com](mailto:support@amazonscraperapi.com)
 - **Node SDK:** [amazon-scraper-api-sdk](https://www.npmjs.com/package/amazon-scraper-api-sdk) · **Go SDK:** [github.com/ChocoData-com/amazon-scraper-api-sdk-go](https://github.com/ChocoData-com/amazon-scraper-api-sdk-go) · **CLI:** [amazon-scraper-api-cli](https://www.npmjs.com/package/amazon-scraper-api-cli) · **MCP server:** [amazon-scraper-api-mcp](https://www.npmjs.com/package/amazon-scraper-api-mcp)
 
 ## License

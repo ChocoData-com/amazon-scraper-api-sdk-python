@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "amazonscraperapi-sdk"
-version = "0.1.1"
+version = "0.1.2"
 description = "Official Python client for Amazon Scraper API (https://amazonscraperapi.com)"
 readme = "README.md"
 license = "MIT"
