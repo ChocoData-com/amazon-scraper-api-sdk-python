@@ -4,7 +4,7 @@
 [![PyPI downloads](https://img.shields.io/pypi/dm/amazonscraperapi-sdk)](https://pypi.org/project/amazonscraperapi-sdk/)
 [![license](https://img.shields.io/pypi/l/amazonscraperapi-sdk)](./LICENSE)
 
-Official Python SDK for **[Amazon Scraper API](https://www.amazonscraperapi.com/)**. Flat-priced at $0.50 per 1,000 successful requests, no credits system, pay only for 2xx responses. Drop into any Python project to fetch structured Amazon product data, run keyword searches, or queue async batches with webhook callbacks.
+Official Python SDK for **[Amazon Scraper API](https://www.amazonscraperapi.com/)**. Pay only for successful (2xx) responses — non-2xx never cost you anything. Pricing starts at $0.90 per 1,000 requests on pay-as-you-go, drops to a flat **$0.50 per 1,000 requests** on Custom plans. 1,000 free requests on signup, no card. Drop into any Python project to fetch structured Amazon product data, run keyword searches, or queue async batches with webhook callbacks.
 
 ## Benchmark (live production, 2026-04)
 
@@ -175,7 +175,7 @@ except AsaError as e:
 | 503 | `SERVICE_OVERLOADED` | Global circuit breaker | Honor `Retry-After: 60`. Rare |
 | 500 | `INTERNAL_ERROR` | Our bug | Report with `X-Request-Id` |
 
-**Flat-credit promise:** non-2xx responses are free. Every response has `X-Request-Id` for traceability. Quote it in any support ticket.
+**Flat-credit promise:** non-2xx responses are free. A basic request costs 5 credits (billing unit; end-customer price is $0.90 per 1,000 basic requests PAYG). Future JS-rendered calls will cost 15 credits. Every response has `X-Request-Id` for traceability — quote it in any support ticket.
 
 ## Get an API key
 
