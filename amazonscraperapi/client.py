@@ -34,7 +34,6 @@ class AmazonScraperAPI:
         self._client = httpx.Client(
             timeout=timeout,
             headers={
-                "Authorization": f"Bearer {api_key}",
                 "User-Agent": "amazonscraperapi-python/0.1.0",
             },
         )
@@ -110,7 +109,11 @@ class AmazonScraperAPI:
         json: Any = None,
     ) -> dict:
         url = self._base_url + path
-        resp = self._client.request(method, url, params=params, json=json)
+        # Auth travels in the query string (?api_key=) - the documented approach.
+        merged_params: dict = {"api_key": self._api_key}
+        if params:
+            merged_params.update(params)
+        resp = self._client.request(method, url, params=merged_params, json=json)
         try:
             body = resp.json()
         except ValueError:
