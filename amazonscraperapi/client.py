@@ -8,6 +8,23 @@ from typing import Any, Iterable, Mapping, Optional
 import httpx
 
 
+def error_code(body: Any) -> Optional[str]:
+    """Error code from a response body, or None.
+
+    The API returns two shapes: ``{"error": "target_unreachable", ...}`` for
+    scrape outcomes and ``{"error": {"code": "INVALID_API_KEY", ...}}`` for
+    account and limit errors.
+    """
+    if not isinstance(body, dict):
+        return None
+    err = body.get("error")
+    if isinstance(err, str):
+        return err
+    if isinstance(err, dict) and isinstance(err.get("code"), str):
+        return err["code"]
+    return None
+
+
 class AmazonScraperAPIError(Exception):
     """Raised when the API returns a non-2xx response."""
 
@@ -15,17 +32,20 @@ class AmazonScraperAPIError(Exception):
         super().__init__(message)
         self.status_code = status_code
         self.body = body
+        #: e.g. ``"target_unreachable"`` or ``"INSUFFICIENT_CREDITS"``
+        self.code = error_code(body)
 
 
 class AmazonScraperAPI:
-    """Synchronous client. For async, use :class:`AsyncAmazonScraperAPI`."""
+    """Synchronous client."""
 
     def __init__(
         self,
         api_key: str,
         *,
         base_url: str = "https://api.amazonscraperapi.com",
-        timeout: float = 60.0,
+        # 120s: the API's own ceiling. Slow but successful scrapes can take 70s+.
+        timeout: float = 120.0,
     ) -> None:
         if not api_key:
             raise ValueError("api_key is required")
@@ -34,7 +54,7 @@ class AmazonScraperAPI:
         self._client = httpx.Client(
             timeout=timeout,
             headers={
-                "User-Agent": "amazonscraperapi-python/0.1.0",
+                "User-Agent": "amazonscraperapi-python/0.1.6",
             },
         )
 
@@ -119,7 +139,7 @@ class AmazonScraperAPI:
         except ValueError:
             body = None
         if not resp.is_success:
-            err = (body or {}).get("error", "request failed") if isinstance(body, dict) else "request failed"
+            err = error_code(body) or "request failed"
             raise AmazonScraperAPIError(resp.status_code, body, f"HTTP {resp.status_code}: {err}")
         return body if isinstance(body, dict) else {}
 

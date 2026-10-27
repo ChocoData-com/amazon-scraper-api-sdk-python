@@ -8,7 +8,7 @@ Usage:
     product = client.product(query="B09HN3Q81F", domain="com")
     print(product["title"])
 """
-from .client import AmazonScraperAPI, AmazonScraperAPIError, verify_webhook_signature
+from .client import AmazonScraperAPI, AmazonScraperAPIError, error_code, verify_webhook_signature
 
-__version__ = "0.1.0"
-__all__ = ["AmazonScraperAPI", "AmazonScraperAPIError", "verify_webhook_signature"]
+__version__ = "0.1.6"
+__all__ = ["AmazonScraperAPI", "AmazonScraperAPIError", "error_code", "verify_webhook_signature"]

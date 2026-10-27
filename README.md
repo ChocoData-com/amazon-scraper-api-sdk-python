@@ -40,29 +40,33 @@ asa = AmazonScraperAPI(api_key="asa_live_...")
 product = asa.product(query="B09HN3Q81F", domain="com")
 
 print(product["title"])
-# "Apple AirPods Pro (2nd Generation)..."
-print(product["price"]["current"])
-# 199.00
-print(product["rating"]["average"], product["rating"]["count"])
-# 4.7 58214
+# "LEGEND COOKWARE 5-Ply Stainless Steel Cookware Set, 14-Piece..."
+print(product["price"], product["currency"])
+# 549.99 USD
+print(product["rating"], product["reviews_count"])
+# 4.5 865
 ```
 
-### Example output (trimmed)
+### Example output (trimmed, ~55 fields in total)
 
 ```python
 {
     "asin": "B09HN3Q81F",
-    "title": "Apple AirPods Pro (2nd Generation)...",
-    "brand": "Apple",
-    "price": {"current": 199.00, "currency": "USD", "was": 249.00, "savings_pct": 20},
-    "rating": {"average": 4.7, "count": 58214, "distribution": {"5": 0.81, "4": 0.12}},
-    "availability": "In Stock",
-    "buybox": {"seller": "Amazon.com", "ships_from": "Amazon.com", "prime": True},
-    "images": ["https://m.media-amazon.com/images/I/...jpg"],
-    "bullets": ["Active Noise Cancellation...", "Adaptive Audio..."],
-    "variants": [{"asin": "B0BDHB9Y8H", "name": "USB-C", "price": 249.00}],
-    "categories": ["Electronics", "Headphones", "Earbud Headphones"],
-    "_meta": {"tier": "direct", "duration_ms": 2634, "marketplace": "amazon.com"},
+    "title": "LEGEND COOKWARE 5-Ply Stainless Steel Cookware Set, 14-Piece...",
+    "brand": "LEGEND COOKWARE",
+    "price": 549.99,
+    "price_strikethrough": None,
+    "currency": "USD",
+    "rating": 4.5,
+    "reviews_count": 865,
+    "stock": "In Stock",
+    "is_prime": True,
+    "images": ["https://m.media-amazon.com/images/I/71Q3a8JH5NL._AC_SY355_.jpg", "..."],
+    "bullet_points": "5-PLY STAINLESS STEEL COOKWARE HEATS EVENLY - Five layers of steel...",
+    "sales_rank": [
+        {"ladder": [{"name": "Kitchen & Dining", "url": None}], "rank": 36177},
+        {"ladder": [{"name": "Kitchen Cookware Sets", "url": None}], "rank": 174},
+    ],
 }
 ```
 
@@ -76,8 +80,9 @@ results = asa.search(
     pages=1,
 )
 
-for r in results["results"]:
-    print(r["position"], r["asin"], r["title"], r["price"].get("current"))
+for p in results["products"]:
+    # Sponsored cards have sponsored_position instead of organic_position.
+    print(p["organic_position"], p["asin"], p["title"], p["price"], p["rating"])
 ```
 
 ## Async batch (up to 1,000 ASINs with webhook callback)
@@ -130,50 +135,50 @@ Building a production-grade Amazon scraper in-house is a 2-4 week engineering pr
 | **Amazon CAPTCHAs / robot pages** | Auto-detected, retried through a heavier proxy tier (datacenter, residential, premium) |
 | **Brittle CSS selectors** | Extractors update as Amazon changes layouts. Your code stays the same. |
 | **20+ marketplaces** | `amazon.de`, `.co.uk`, `.co.jp`, `.com.br`, and more. Each with marketplace-specific parsing quirks. |
-| **Country-matched residential IPs** | `amazon.de` auto-routes through German IPs. Pass `country="DE"` to override. |
+| **Country-matched residential IPs** | `amazon.de` auto-routes through German IPs. |
 | **Rotating proxies + anti-fingerprinting** | TLS fingerprints, headers, cookies handled server-side. |
-| **Rate-limit retries** | Transparent exponential backoff. |
-| **Structured JSON output** | Title, price, rating, reviews, variants, seller, images. Parsed, typed. |
+| **Structured JSON output** | Title, price, rating, reviews, variants, seller, images. Parsed. |
 | **Batch/async jobs** | 1,000 ASINs submitted, webhook-delivered on completion. |
 
 **Time saved:** a greenfield Python Amazon scraper built to this spec takes roughly 80 engineer-hours (including anti-bot handling and marketplace variants). This SDK is 10 minutes.
 
 ## Error handling
 
-All failures follow a stable shape so you can match on `code`:
+Every failed call raises `AmazonScraperAPIError` with `status_code`, `code` (the API's error code, or `None`) and `body` (the parsed JSON body). The SDK does not retry on its own, so match on `e.code` and decide:
 
 ```python
-from amazonscraperapi import AmazonScraperAPI, AsaError
 import time
+from amazonscraperapi import AmazonScraperAPI, AmazonScraperAPIError
 
 asa = AmazonScraperAPI(api_key="asa_live_...")
 
 try:
-    product = asa.product(query="INVALID_ASIN", domain="com")
-except AsaError as e:
+    product = asa.product(query="B09HN3Q81F", domain="com")
+except AmazonScraperAPIError as e:
     if e.code == "INSUFFICIENT_CREDITS":
         pass  # top up
     elif e.code == "RATE_LIMITED":
-        time.sleep(e.retry_after)
-    elif e.code in ("target_unreachable", "amazon-robot-or-human"):
-        # non-2xx, you were not charged. safe to retry.
-        pass
+        time.sleep(e.body["error"].get("retry_after_ms", 1000) / 1000)
+    elif e.code == "target_unreachable":
+        time.sleep(60)  # not charged; retry once
     else:
         raise
 ```
 
 | HTTP | `code` | When you see it | Recommended action |
 |---|---|---|---|
-| 400 | `INVALID_PARAMS` | Missing `query`, unsupported `domain`, bad `sort_by` | Fix request; don't retry |
+| 400 | `invalid_params` | Missing `query`, unsupported `domain`, bad `sort_by` | Fix request; don't retry |
 | 401 | `INVALID_API_KEY` | Missing, malformed, revoked | Verify `ASA_API_KEY`; rotate if leaked |
 | 402 | `INSUFFICIENT_CREDITS` | Balance empty | Top up; renews each billing cycle |
-| 429 | `RATE_LIMITED` | Over 120 req/60s per user | Honor `Retry-After`; retry |
+| 404 | `product_not_found` | ASIN delisted, malformed, or not on this marketplace | Don't retry; drop the ASIN |
+| 429 | `RATE_LIMITED` | Over request-rate budget | Wait `error.retry_after_ms`; retry |
 | 429 | `CONCURRENCY_LIMIT` | Over plan's parallel cap | Reduce parallelism or upgrade. `X-Concurrency-*` headers guide backoff |
-| 502 | `target_unreachable` | Amazon down / all proxy tiers blocked | Retry after 30s (already retried through 3 tiers on our side) |
-| 502 | `amazon-robot-or-human` | Amazon challenge not resolvable | Retry. Often transient. Not charged |
-| 502 | `extraction_failed` | Layout we can't parse | Report with `X-Request-Id`. Not charged |
+| 502 | `target_unreachable` | Amazon blocked every internal retry (`last_block_reason` says why) | Retry after 60s or more. Not charged |
+| 502 | `extraction_failed` | Layout we can't parse | Retry later; report with `X-Request-Id` if it persists. Not charged |
 | 503 | `SERVICE_OVERLOADED` | Global circuit breaker | Honor `Retry-After: 60`. Rare |
 | 500 | `INTERNAL_ERROR` | Our bug | Report with `X-Request-Id` |
+
+The default request timeout is 120s (the API's own ceiling); override it with `AmazonScraperAPI(api_key=..., timeout=...)`.
 
 **Flat-credit promise:** non-2xx responses are free. A basic request costs 5 credits (billing unit; end-customer price is $0.90 per 1,000 basic requests PAYG). Future JS-rendered calls will cost 15 credits. Every response has `X-Request-Id` for traceability — quote it in any support ticket.
 
@@ -185,7 +190,6 @@ except AsaError as e:
 
 - **Website:** https://www.amazonscraperapi.com/
 - **Docs:** https://amazonscraperapi.com/docs
-- **Status:** https://amazonscraperapi.com/status
 - **Pricing:** https://amazonscraperapi.com/pricing
 - **Node SDK:** [amazon-scraper-api-sdk](https://www.npmjs.com/package/amazon-scraper-api-sdk) · **Go SDK:** [github.com/ChocoData-com/amazon-scraper-api-sdk-go](https://github.com/ChocoData-com/amazon-scraper-api-sdk-go) · **CLI:** [amazon-scraper-api-cli](https://www.npmjs.com/package/amazon-scraper-api-cli) · **MCP server:** [amazon-scraper-api-mcp](https://www.npmjs.com/package/amazon-scraper-api-mcp)
 
